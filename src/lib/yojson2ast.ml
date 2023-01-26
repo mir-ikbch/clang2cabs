@@ -530,6 +530,47 @@ and parse_statement typemap : Yojson.Safe.t -> Ast.statement = function
     | [] -> Ast.RETURN (None, location)
     | _ -> raise (Invalid_Yojson ("Return statements has multiple expressions.", yojson))
     end
+  | `Variant (
+    "BreakStmt", Some (`Tuple (
+      `Assoc source_info ::
+      _
+    ))
+  ) ->
+    let location = extract_location source_info in
+    Ast.BREAK location
+  | `Variant (
+    "ContinueStmt", Some (`Tuple (
+      `Assoc source_info ::
+      _
+    ))
+  ) ->
+    let location = extract_location source_info in 
+    Ast.CONTINUE location
+  | `Variant (
+    "GotoStmt", Some (`Tuple (
+      `Assoc source_info ::
+      `List _ ::
+      `Assoc lbl ::
+      _
+    ))
+  ) ->
+    let location = extract_location source_info in
+    let label =
+      match List.assoc_opt "label" lbl with
+      | Some (`String name) -> name
+      | _ -> ""
+    in
+    Ast.GOTO (label, location)
+  | `Variant (
+    "LabelStmt", Some (`Tuple (
+      `Assoc source_info ::
+      `List [stmt] ::
+      `String label ::
+      _
+    ))
+  ) ->
+    let location = extract_location source_info in
+    Ast.LABEL (label, Ast.BLOCK (parse_body typemap stmt, location), location)
   | expr ->
     Ast.COMPUTATION (parse_expression typemap expr)
 

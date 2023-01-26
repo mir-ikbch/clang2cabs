@@ -49,8 +49,23 @@ and statement =
   | BLOCK of block * cabsloc
   | IF of expression * statement * statement * cabsloc
   | WHILE of expression * statement * cabsloc
+  | FOR of (*formula * *) for_clause * expression * expression * statement * cabsloc
   | RETURN of expression * cabsloc
   | DEFINITION of definition 
+  | BREAK of cabsloc
+  | CONTINUE of cabsloc
+  | GOTO of string * cabsloc
+  | LABEL of string * statement * cabsloc
+
+and for_clause = 
+    FC_EXP of expression
+  | FC_DECL of definition
+
+(*
+and compound = (string * string list * expression list) 
+
+and formula = string list * expression list * bool * compound list * (string * expression list) list 
+*)
  
 and binary_operator =
     ADD | SUB | MUL | DIV | MOD

@@ -107,6 +107,14 @@ let rec conv_statement : Ast.statement -> Cabs.statement = function
       conv_init_name_group init_name_group,
       conv_location location
     ))
+  | Ast.BREAK location ->
+    Cabs.BREAK (conv_location location)
+  | Ast.CONTINUE location ->
+    Cabs.CONTINUE (conv_location location)
+  | Ast.GOTO (label, location) ->
+    Cabs.GOTO (label, conv_location location)
+  | Ast.LABEL (label, stmt, location) ->
+    Cabs.LABEL (label, conv_statement stmt, conv_location location)
 
 and conv_block block : Cabs.block = {
   blabels= [];

@@ -71,6 +71,10 @@ and statement =
   | WHILE of expression * statement * location
   | RETURN of expression option * location
   | VARDECL of init_name_group * variable_scope * location
+  | BREAK of location
+  | CONTINUE of location
+  | GOTO of string * location
+  | LABEL of string * statement * location
 
 and binary_operator =
   | ADD | SUB | MUL | DIV | MOD
@@ -221,6 +225,14 @@ and show_statement indent = function
     indent ^ "VARDECL[" ^ show_variable_scope scope_info ^ "](\n" ^
     init_name_group ^ "\n" ^
     indent ^ ")"
+  | BREAK _ ->
+    indent ^ "BREAK"
+  | CONTINUE _ ->
+    indent ^ "CONTINUE"
+  | GOTO (label, _location) ->
+    indent ^ "GOTO " ^ label
+  | LABEL (label, stat, _location) ->
+    indent ^ "LABEL " ^ label ^ "\n" ^ show_statement indent stat
 and show_expression = function
   | UNARY (op, expr, _location) ->
     show_unary_operator (show_expression expr) op

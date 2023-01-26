@@ -135,6 +135,10 @@ and statement =
    *)
   | VARDECL of init_name_group * variable_scope * location
   (** variable declaration *)
+  | BREAK of location (** break statement *)
+  | CONTINUE of location
+  | GOTO of string * location
+  | LABEL of string * statement * location
 
 and binary_operator =
   | ADD (** [e1 + e2] *)

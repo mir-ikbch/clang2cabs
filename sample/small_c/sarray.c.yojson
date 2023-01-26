@@ -315,8 +315,7 @@
                         "cast_kind" : <"ArrayToPointerDecay">,
                         "base_path" : [
                         ]
-                      },
-                      false
+                      }
                     )>,
                     <"IntegerLiteral" : (
                       {
@@ -410,8 +409,7 @@
                     "cast_kind" : <"LValueToRValue">,
                     "base_path" : [
                     ]
-                  },
-                  false
+                  }
                 )>
               ],
               {
@@ -509,8 +507,7 @@
                         "cast_kind" : <"ArrayToPointerDecay">,
                         "base_path" : [
                         ]
-                      },
-                      false
+                      }
                     )>,
                     <"IntegerLiteral" : (
                       {
@@ -604,8 +601,7 @@
                     "cast_kind" : <"LValueToRValue">,
                     "base_path" : [
                     ]
-                  },
-                  false
+                  }
                 )>
               ],
               {
@@ -703,8 +699,7 @@
                         "cast_kind" : <"ArrayToPointerDecay">,
                         "base_path" : [
                         ]
-                      },
-                      false
+                      }
                     )>,
                     <"IntegerLiteral" : (
                       {
@@ -798,8 +793,7 @@
                     "cast_kind" : <"LValueToRValue">,
                     "base_path" : [
                     ]
-                  },
-                  false
+                  }
                 )>
               ],
               {

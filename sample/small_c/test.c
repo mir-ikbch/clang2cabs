@@ -9,14 +9,17 @@ int test(int x, int y) {
 
 void test2() {
     int i, a = 0;
-    for (i = 0; i < 10 && a == 42 || i < a; i = i + 1) {
+    for (i = 0; i < 10; i = i + 1) {
         a = a + i;
     }
     i = 0;
+    goto foo;
     while (i < 10) {
         a = a + i;
         i = i + 1;
+        continue;
     }
+    foo:
     if (!(a > 20)) {
         a = 0;
         if (i != 10) a = 99;
