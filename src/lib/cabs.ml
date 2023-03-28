@@ -51,6 +51,8 @@ and statement =
   | WHILE of expression * statement * cabsloc
   | FOR of (*formula * *) for_clause * expression * expression * statement * cabsloc
   | RETURN of expression * cabsloc
+  | SWITCH of expression * statement * cabsloc
+  | CASE of expression * statement * cabsloc
   | DEFINITION of definition 
   | BREAK of cabsloc
   | CONTINUE of cabsloc

@@ -17,7 +17,7 @@ void test2() {
     while (i < 10) {
         a = a + i;
         i = i + 1;
-        continue;
+        break;
     }
     foo:
     if (!(a > 20)) {
@@ -25,6 +25,8 @@ void test2() {
         if (i != 10) a = 99;
     } else {
         a = 42;
+    }
+    switch (a) {
     }
     return;
 }

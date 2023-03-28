@@ -102,6 +102,8 @@ let rec conv_statement : Ast.statement -> Cabs.statement = function
     Cabs.RETURN (conv_expression expression, conv_location location)
   | Ast.RETURN (None, _location) ->
     raise (Cannot_convert "Cabs does not support empty RETURN statement")
+  | Ast.SWITCH (expr, stmt, location) ->
+    Cabs.SWITCH (conv_expression expr, conv_statement stmt, conv_location location)
   | Ast.VARDECL (init_name_group, _, location) ->
     Cabs.DEFINITION (Cabs.DECDEF (
       conv_init_name_group init_name_group,
@@ -115,6 +117,8 @@ let rec conv_statement : Ast.statement -> Cabs.statement = function
     Cabs.GOTO (label, conv_location location)
   | Ast.LABEL (label, stmt, location) ->
     Cabs.LABEL (label, conv_statement stmt, conv_location location)
+  | Ast.CASE (expr, stmt, location) ->
+    Cabs.CASE (conv_expression expr, conv_statement stmt, conv_location location)
 
 and conv_block block : Cabs.block = {
   blabels= [];

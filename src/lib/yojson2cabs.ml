@@ -3,7 +3,7 @@ open Util
 exception Invalid_Yojson of string * Yojson.Safe.t
 
 type [@warning "-37"] c_type =
-  | Just of Ast.type_specifier
+  | Just of Cabs.typeSpecifier
   | Pointer of int
   | Array of { ptr: int; size: int }
 
@@ -12,18 +12,18 @@ module PointerMap = Map.Make(Int)
 let find_type typemap i =
   let rec impl p =
     match PointerMap.find_opt p typemap with
-    | Some (Just tpe) -> Some (tpe, Ast.JUSTBASE)
+    | Some (Just tpe) -> Some (tpe, Cabs.JUSTBASE)
     | Some (Pointer ptr) ->
       begin match impl ptr with
       | Some (tpe, decl_type) ->
-        Some (tpe, Ast.PTR decl_type)
+        Some (tpe, Cabs.PTR ([], decl_type))
       | None -> None
       end
     | Some (Array { ptr; size }) ->
       begin match impl ptr with
       | Some (tpe, decl_type) ->
-        let expr = Ast.CONSTANT (Ast.CONST_INT (string_of_int size), Ast.empty_location) in
-        Some (tpe, Ast.ARRAY (decl_type, expr))
+        let expr = Cabs.CONSTANT (Cabs.CONST_INT (string_of_int size)) in
+        Some (tpe, Cabs.ARRAY (decl_type, [], expr))
       | None -> None
       end
     | None -> None
@@ -48,13 +48,14 @@ let make_typemap typedata = List.fold_left (fun map -> function
     ))
   ) as yojson ->
     let tpe = match tpe with
+    | "Int" -> Cabs.Tint
+	(*
     | "Bool"  -> Ast.Tbool
     | "Char_S" -> Ast.Tchar_s
     | "SChar" -> Ast.Tchar
     | "UChar" -> Ast.Tuchar
     | "Short" -> Ast.Tshort
     | "UShort" -> Ast.Tushort
-    | "Int" -> Ast.Tint
     | "UInt" -> Ast.Tuint
     | "Long" -> Ast.Tlong
     | "ULong" -> Ast.Tulong
@@ -62,6 +63,7 @@ let make_typemap typedata = List.fold_left (fun map -> function
     | "ULongLong" -> Ast.Tulonglong
     | "Float" -> Ast.Tfloat
     | "Double" -> Ast.Tdouble
+	*)
     | _ -> raise (Invalid_Yojson ("Invalid buildin type.", yojson))
     in
     PointerMap.add i (Just tpe) map
@@ -72,16 +74,16 @@ let make_typemap typedata = List.fold_left (fun map -> function
       _
     ))
   ) ->
-    PointerMap.add i (Just Ast.Tvoid) map
-  (* in 'small C', we do not treat pointer type. *)
-  (* | `Variant (
+    PointerMap.add i (Just Cabs.Tvoid) map
+(*
+  | `Variant (
     "PointerType", Some (`Tuple (
       `Assoc [("pointer", `Int i)] ::
       `Assoc [("type_ptr", `Int p)] ::
       _
     ))
   ) ->
-    PointerMap.add i (Pointer p) map *)
+    PointerMap.add i (Pointer p) map 
   | `Variant (
     "ConstantArrayType", Some (`Tuple (
       `Assoc [("pointer", `Int i)] ::
@@ -94,12 +96,14 @@ let make_typemap typedata = List.fold_left (fun map -> function
     ))
   ) ->
     PointerMap.add i (Array { ptr= p; size }) map
+	*)
   | _ ->
     map
   )
   PointerMap.empty
   typedata
 
+(*
 let show_c_type = function
   | Just tpe -> Ast.show_type_specifier tpe
   | Pointer p -> "Pointer->" ^ string_of_int p
@@ -109,7 +113,7 @@ let show_typemap typemap =
   typemap |> PointerMap.iter (fun idx tpe ->
     Printf.printf "%d => %s\n" idx (show_c_type tpe)
   )
-
+*)
 type function_typeinfo = {
   return_type: c_type;
   param_types: c_type list
@@ -166,52 +170,29 @@ let make_fuction_typeinfo typemap typedata = List.fold_left (fun map -> function
   PointerMap.empty
   typedata
 
+(*
 let show_fuction_typeinfo function_typeinfo =
   function_typeinfo |> PointerMap.iter (fun idx {return_type; param_types} ->
     let rt = show_c_type return_type in
     let at = param_types |> List.map show_c_type |> String.concat "," in
     Printf.printf "%d => { return: %s, args: %s }\n" idx rt at
   )
+*)
+let dummy_loc: Cabs.cabsloc = {
+  lineno= 0;
+  filename= "";
+  byteno= 0;
+  ident= 0;
+}
 
-let extract_location info =
-  let result = Ast.empty_location in
-  let result =
-    match List.assoc_opt "source_range" info with
-    | Some (`Tuple (`Assoc start_info :: `Assoc end_info :: _)) ->
-      let result =
-        match List.assoc_opt "file" start_info with
-        | Some (`String file) -> { result with file= Some file }
-        | _ -> result
-      in
-      let result =
-        match List.assoc_opt "line" start_info with
-        | Some (`Int line) -> { result with start_line= Some line }
-        | _ -> result
-      in
-      let result =
-        match List.assoc_opt "column" start_info with
-        | Some (`Int column) -> { result with start_column= Some column }
-        | _ -> result
-      in
-      let result =
-        match List.assoc_opt "line" end_info with
-        | Some (`Int line) -> { result with end_line= Some line }
-        | _ -> result
-      in
-      let result =
-        match List.assoc_opt "column" end_info with
-        | Some (`Int column) -> { result with end_column= Some column }
-        | _ -> result
-      in
-      result
-    | _ -> result
-  in
+let extract_location _info =
+  let result = dummy_loc in
   result
 
-let parse_parameters typemap : Yojson.Safe.t -> Ast.single_name = function
+let parse_parameters typemap : Yojson.Safe.t -> Cabs.single_name = function
   | `Variant (
     "ParmVarDecl", Some (`Tuple (
-      `Assoc source_info ::
+      `Assoc _source_info ::
       `Assoc name_info ::
       `Assoc [("type_ptr", `Int type_ptr)] ::
       _
@@ -229,7 +210,7 @@ let parse_parameters typemap : Yojson.Safe.t -> Ast.single_name = function
       | None -> raise (Invalid_Yojson ("Paramater type not found.", yojson))
       end
     in
-    [tpe], (name, decl_type), extract_location source_info
+    [SpecType tpe], (name, decl_type, [], dummy_loc)
   | yojson ->
     raise (Invalid_Yojson ("Invalid paramater data.", yojson))
 
@@ -245,10 +226,10 @@ let extract_variable_scope map =
     is_static_local= get_scope "is_static_local"
   }
 
-let rec parse_expression typemap : Yojson.Safe.t -> Ast.expression = function
+let rec parse_expression typemap : Yojson.Safe.t -> Cabs.expression = function
   | `Variant (
     "UnaryOperator", Some (`Tuple (
-      `Assoc source_info ::
+      `Assoc _source_info ::
       `List [expr] ::
       _qual_type ::
       `Assoc (("kind", `Variant (kind, None)) :: _) ::
@@ -256,19 +237,18 @@ let rec parse_expression typemap : Yojson.Safe.t -> Ast.expression = function
     ))
   ) as yojson ->
     let expr = parse_expression typemap expr in
-    let location = extract_location source_info in
     begin match kind with
-    | "LNot" -> Ast.UNARY (Ast.NOT, expr, location)
-    | "Minus" -> Ast.UNARY (Ast.MINUS, expr, location)
-    | "PostInc" -> Ast.UNARY (Ast.POSINCR, expr, location)
-    | "PreInc" -> Ast.UNARY (Ast.PREINCR, expr, location)
-    | "PostDec" -> Ast.UNARY (Ast.POSDECR, expr, location)
-    | "PreDec" -> Ast.UNARY (Ast.PREDECR, expr, location)
+    | "LNot" -> Cabs.UNARY (Cabs.NOT, expr )
+    | "Minus" -> Cabs.UNARY (Cabs.MINUS, expr)
+    | "PostInc" -> Cabs.UNARY (Cabs.POSINCR, expr)
+    | "PreInc" -> Cabs.UNARY (Cabs.PREINCR, expr)
+    | "PostDec" -> Cabs.UNARY (Cabs.POSDECR, expr)
+    | "PreDec" -> Cabs.UNARY (Cabs.PREDECR, expr)
     | _ -> raise (Invalid_Yojson ("Invalid unary operation.", yojson))
     end
   | `Variant (
     "BinaryOperator", Some (`Tuple (
-      `Assoc source_info ::
+      `Assoc _source_info ::
       `List [
         left_expr;
         right_expr;
@@ -281,28 +261,27 @@ let rec parse_expression typemap : Yojson.Safe.t -> Ast.expression = function
     let left = parse_expression typemap left_expr
     and right = parse_expression typemap right_expr
     in
-    let location = extract_location source_info in
     begin match kind with
-    | "Add" -> Ast.BINARY (Ast.ADD, left, right, location)
-    | "Sub" -> Ast.BINARY (Ast.SUB, left, right, location)
-    | "Mul" -> Ast.BINARY (Ast.MUL, left, right, location)
-    | "Div" -> Ast.BINARY (Ast.DIV, left, right, location)
-    | "Rem" -> Ast.BINARY (Ast.MOD, left, right, location)
-    | "EQ" -> Ast.BINARY (Ast.EQ, left, right, location)
-    | "NE" -> Ast.BINARY (Ast.NE, left, right, location)
-    | "LT" -> Ast.BINARY (Ast.LT, left, right, location)
-    | "LE" -> Ast.BINARY (Ast.LE, left, right, location)
-    | "GT" -> Ast.BINARY (Ast.GT, left, right, location)
-    | "GE" -> Ast.BINARY (Ast.GE, left, right, location)
-    | "LAnd" -> Ast.BINARY (Ast.AND, left, right, location)
-    | "LOr" -> Ast.BINARY (Ast.OR, left, right, location)
-    | "Assign" -> Ast.BINARY (Ast.ASSIGN, left, right, location)
+    | "Add" -> Cabs.BINARY (Cabs.ADD, left, right)
+    | "Sub" -> Cabs.BINARY (Cabs.SUB, left, right)
+    | "Mul" -> Cabs.BINARY (Cabs.MUL, left, right)
+    | "Div" -> Cabs.BINARY (Cabs.DIV, left, right)
+    | "Rem" -> Cabs.BINARY (Cabs.MOD, left, right)
+    | "EQ" -> Cabs.BINARY (Cabs.EQ, left, right)
+    | "NE" -> Cabs.BINARY (Cabs.NE, left, right)
+    | "LT" -> Cabs.BINARY (Cabs.LT, left, right)
+    | "LE" -> Cabs.BINARY (Cabs.LE, left, right)
+    | "GT" -> Cabs.BINARY (Cabs.GT, left, right)
+    | "GE" -> Cabs.BINARY (Cabs.GE, left, right)
+    | "LAnd" -> Cabs.BINARY (Cabs.AND, left, right)
+    | "LOr" -> Cabs.BINARY (Cabs.OR, left, right)
+    | "Assign" -> Cabs.BINARY (Cabs.ASSIGN, left, right)
     | _ -> raise (Invalid_Yojson ("Invalid binary operation.", yojson))
     end
   (* We should care function call if and only if it is called with constant name. *)
   | `Variant (
     "CallExpr", Some (`Tuple (
-      `Assoc source_info ::
+      `Assoc _source_info ::
       `List (
         `Variant (
           "ImplicitCastExpr", Some (`Tuple (
@@ -334,16 +313,15 @@ let rec parse_expression typemap : Yojson.Safe.t -> Ast.expression = function
     ))
   ) ->
     let args = List.map (parse_expression typemap) args in
-    let location = extract_location source_info in
-    Ast.CALL (name, args, location)
+    Cabs.CALL (Cabs.CONSTANT (Cabs.CONST_STRING name), args)
   | `Variant (
     "ParenExpr", Some (`Tuple (
-      `Assoc source_info ::
+      `Assoc _source_info ::
       `List [expr] ::
       _
     ))
   ) ->
-    Ast.PAREN (parse_expression typemap expr, extract_location source_info)
+    Cabs.PAREN (parse_expression typemap expr)
   | `Variant (
     "ImplicitCastExpr", Some (`Tuple (
       _source_info ::
@@ -354,7 +332,7 @@ let rec parse_expression typemap : Yojson.Safe.t -> Ast.expression = function
     parse_expression typemap expr
   | `Variant (
     "DeclRefExpr", Some (`Tuple (
-      `Assoc source_info ::
+      `Assoc _source_info ::
       _children ::
       _qual_type ::
       `Assoc [("decl_ref", `Assoc decl_data)] ::
@@ -371,11 +349,10 @@ let rec parse_expression typemap : Yojson.Safe.t -> Ast.expression = function
       | _ -> raise (Invalid_Yojson ("Name data not found.", yojson))
       end
     in
-    let location = extract_location source_info in
-    Ast.VARIABLE (name, location)
+    Cabs.VARIABLE name
   | `Variant (
     "IntegerLiteral", Some (`Tuple (
-      `Assoc source_info ::
+      `Assoc _source_info ::
       _children ::
       _qual_type ::
       `Assoc data ::
@@ -388,11 +365,10 @@ let rec parse_expression typemap : Yojson.Safe.t -> Ast.expression = function
       | _ -> raise (Invalid_Yojson ("Invalid expression data.", yojson))
       end
     in
-    let location = extract_location source_info in
-    Ast.CONSTANT (Ast.CONST_INT value, location)
+    Cabs.CONSTANT (Cabs.CONST_INT value)
   | `Variant (
     "ArraySubscriptExpr", Some (`Tuple (
-      `Assoc source_info ::
+      `Assoc _source_info ::
       `List [
         arr;
         idx
@@ -400,15 +376,14 @@ let rec parse_expression typemap : Yojson.Safe.t -> Ast.expression = function
       _
     ))
   ) ->
-    Ast.INDEX (
+    Cabs.INDEX (
       parse_expression typemap arr,
-      parse_expression typemap idx,
-      extract_location source_info
+      parse_expression typemap idx
     )
   | yojson ->
     raise (Invalid_Yojson ("Invalid expression data.", yojson))
 
-and parse_statement typemap : Yojson.Safe.t -> Ast.statement = function
+and parse_statement typemap : Yojson.Safe.t -> Cabs.statement = function
   | `Variant (
     "DeclStmt", Some (`Tuple (
       `Assoc source_info ::
@@ -419,7 +394,7 @@ and parse_statement typemap : Yojson.Safe.t -> Ast.statement = function
   ) ->
     let stmts = var_decls |> List.map (parse_statement typemap) in
     let location = extract_location source_info in
-    Ast.BLOCK (stmts, location)
+    Cabs.BLOCK (conv_block stmts, location)
   | `Variant (
     "VarDecl", Some (`Tuple (
       `Assoc source_info ::
@@ -445,17 +420,15 @@ and parse_statement typemap : Yojson.Safe.t -> Ast.statement = function
     begin match List.assoc_opt "init_expr" var_info with
     | Some init_expr ->
       let init_expr = parse_expression typemap init_expr in
-      Ast.VARDECL (
-        ([tpe], [(name, decl_type), Ast.SINGLE_INIT init_expr]),
-        extract_variable_scope var_info,
+      Cabs.DEFINITION (Cabs.DECDEF (
+        ([Cabs.SpecType tpe], [(name, decl_type, [], dummy_loc), Cabs.SINGLE_INIT init_expr]),
         location
-      )
+      ))
     | None ->
-      Ast.VARDECL (
-        ([tpe], [(name, decl_type), Ast.NO_INIT]),
-        extract_variable_scope var_info,
+      Cabs.DEFINITION (Cabs.DECDEF (
+        ([Cabs.SpecType tpe], [(name, decl_type, [], dummy_loc), Cabs.NO_INIT]),
         location
-      )
+      ))
     end
   | `Variant (
     "IfStmt", Some (`Tuple (
@@ -467,21 +440,22 @@ and parse_statement typemap : Yojson.Safe.t -> Ast.statement = function
     let location = extract_location source_info in
     begin match body with
     | [cond; true_stmts; false_stmts] ->
-      Ast.IF (
+      Cabs.IF (
         parse_expression typemap cond,
-        Ast.BLOCK (parse_body typemap true_stmts, location),
-        Ast.BLOCK (parse_body typemap false_stmts, location),
+        Cabs.BLOCK (parse_body typemap true_stmts, location),
+        Cabs.BLOCK (parse_body typemap false_stmts, location),
         location
       )
     | [cond; true_stmts] ->
-      Ast.IF (
+      Cabs.IF (
         parse_expression typemap cond,
-        Ast.BLOCK (parse_body typemap true_stmts, location),
-        Ast.NOP,
+        Cabs.BLOCK (parse_body typemap true_stmts, location),
+        Cabs.NOP dummy_loc,
         location
       )
     | _ -> raise (Invalid_Yojson ("Invalid IF statement.", yojson))
     end
+	(*
   | `Variant (
     "ForStmt", Some (`Tuple (
       `Assoc source_info ::
@@ -496,13 +470,14 @@ and parse_statement typemap : Yojson.Safe.t -> Ast.statement = function
     ))
   ) ->
     let location = extract_location source_info in
-    Ast.FOR (
+    Cabs.FOR (
       parse_expression typemap expr1,
       parse_expression typemap expr2,
       parse_expression typemap expr3,
-      Ast.BLOCK (parse_body typemap stmts, location),
+      Cabs.BLOCK (parse_body typemap stmts, location),
       location
     )
+	*)
   | `Variant (
     "WhileStmt", Some (`Tuple (
       `Assoc source_info ::
@@ -516,7 +491,7 @@ and parse_statement typemap : Yojson.Safe.t -> Ast.statement = function
     let expr = parse_expression typemap expr in
     let body = parse_body typemap stmts in
     let location = extract_location source_info in
-    Ast.WHILE (expr, (Ast.BLOCK (body, location)), location)
+    Cabs.WHILE (expr, (Cabs.BLOCK (body, location)), location)
   | `Variant (
     "SwitchStmt", Some (`Tuple (
       `Assoc source_info ::
@@ -527,7 +502,7 @@ and parse_statement typemap : Yojson.Safe.t -> Ast.statement = function
   let expr = parse_expression typemap expr in
   let body = parse_body typemap stmts in
   let location = extract_location source_info in
-  Ast.CASE (expr, Ast.BLOCK (body, location), location)
+  Cabs.CASE (expr, Cabs.BLOCK (body, location), location)
   | `Variant (
     "ReturnStmt", Some (`Tuple (
       `Assoc source_info ::
@@ -537,8 +512,8 @@ and parse_statement typemap : Yojson.Safe.t -> Ast.statement = function
   ) as yojson ->
     let location = extract_location source_info in
     begin match expr with
-    | [expr] -> Ast.RETURN (Some (parse_expression typemap expr), location)
-    | [] -> Ast.RETURN (None, location)
+    | [expr] -> Cabs.RETURN (parse_expression typemap expr, location)
+    | [] -> Cabs.RETURN (Cabs.NOTHING, location)
     | _ -> raise (Invalid_Yojson ("Return statements has multiple expressions.", yojson))
     end
   | `Variant (
@@ -548,7 +523,7 @@ and parse_statement typemap : Yojson.Safe.t -> Ast.statement = function
     ))
   ) ->
     let location = extract_location source_info in
-    Ast.BREAK location
+    Cabs.BREAK location
   | `Variant (
     "ContinueStmt", Some (`Tuple (
       `Assoc source_info ::
@@ -556,7 +531,7 @@ and parse_statement typemap : Yojson.Safe.t -> Ast.statement = function
     ))
   ) ->
     let location = extract_location source_info in 
-    Ast.CONTINUE location
+    Cabs.CONTINUE location
   | `Variant (
     "GotoStmt", Some (`Tuple (
       `Assoc source_info ::
@@ -571,7 +546,7 @@ and parse_statement typemap : Yojson.Safe.t -> Ast.statement = function
       | Some (`String name) -> name
       | _ -> ""
     in
-    Ast.GOTO (label, location)
+    Cabs.GOTO (label, location)
   | `Variant (
     "LabelStmt", Some (`Tuple (
       `Assoc source_info ::
@@ -581,7 +556,7 @@ and parse_statement typemap : Yojson.Safe.t -> Ast.statement = function
     ))
   ) ->
     let location = extract_location source_info in
-    Ast.LABEL (label, Ast.BLOCK (parse_body typemap stmt, location), location)
+	Cabs.LABEL (label, parse_statement typemap stmt, location)
   | `Variant (
     "CaseStmt", Some (`Tuple (
       `Assoc source_info ::
@@ -593,12 +568,12 @@ and parse_statement typemap : Yojson.Safe.t -> Ast.statement = function
     (match lst with
     | [expr; stmt] ->
       let expr = parse_expression typemap expr in print_string "here\n";
-      Ast.CASE (expr, parse_statement typemap stmt, location)
+      Cabs.CASE (expr, parse_statement typemap stmt, location)
     | _ -> raise (Invalid_Yojson ("Something wrong with case statement.", yojson)))
   | expr ->
-    Ast.COMPUTATION (parse_expression typemap expr)
+    Cabs.COMPUTATION (parse_expression typemap expr, dummy_loc)
 
-and parse_body typemap : Yojson.Safe.t -> Ast.block = function
+and parse_body typemap : Yojson.Safe.t -> Cabs.block = function
   | `Variant (
     "CompoundStmt", Some (`Tuple (
       _source_info ::
@@ -606,11 +581,17 @@ and parse_body typemap : Yojson.Safe.t -> Ast.block = function
       _
     ))
   ) ->
-    statements |> List.map (parse_statement typemap)
+    conv_block (statements |> List.map (parse_statement typemap))
   | yojson ->
-    [parse_statement typemap yojson]
+    conv_block [parse_statement typemap yojson]
 
-let ast_of_yojson typemap function_typeinfo definitions =
+and conv_block block : Cabs.block = {
+  blabels= [];
+  battrs= [];
+  bstmts= block
+}
+
+let cabs_of_yojson typemap function_typeinfo definitions =
   let parse_definition definitions = function
     | `Variant (
       "VarDecl", Some (`Tuple (
@@ -622,7 +603,6 @@ let ast_of_yojson typemap function_typeinfo definitions =
       ))
     ) as yojson ->
       let location = extract_location source_info in
-      let variable_scope = extract_variable_scope var_info in
       let name =
         begin match List.assoc_opt "name" name_data with
         | Some (`String name) -> name
@@ -638,15 +618,13 @@ let ast_of_yojson typemap function_typeinfo definitions =
       begin match List.assoc_opt "init_expr" var_info with
       | Some init_expr ->
         let init_expr = parse_expression typemap init_expr in
-        Ast.DECDEF (
-          ([tpe], [(name, decl_type), Ast.SINGLE_INIT init_expr]),
-          variable_scope,
+        Cabs.DECDEF (
+          ([Cabs.SpecType tpe], [(name, decl_type, [], dummy_loc), Cabs.SINGLE_INIT init_expr]),
           location
         ) :: definitions
       | None ->
-        Ast.DECDEF (
-          ([tpe], [(name, decl_type), Ast.NO_INIT]),
-          variable_scope,
+        Cabs.DECDEF (
+          ([Cabs.SpecType tpe], [(name, decl_type, [], dummy_loc), Cabs.NO_INIT]),
           location
         ) :: definitions
       end
@@ -670,35 +648,37 @@ let ast_of_yojson typemap function_typeinfo definitions =
           begin match PointerMap.find_opt type_ptr function_typeinfo with
           | Some { return_type; _ } ->
             begin match return_type with
-            | Just tpe -> tpe, Ast.JUSTBASE
+            | Just tpe -> tpe, Cabs.JUSTBASE
             | Array { ptr; size} ->
               begin match find_type typemap ptr with
               | Some (tpe, decl_type) ->
-                let expr = Ast.CONSTANT (Ast.CONST_INT (string_of_int size), location) in
-                tpe, (Ast.ARRAY (decl_type, expr))
+                let expr = Cabs.CONSTANT (Cabs.CONST_INT (string_of_int size)) in
+                tpe, (Cabs.ARRAY (decl_type, [], expr))
               | None -> raise (Invalid_Yojson ("Function type not found.", yojson))
               end
             | Pointer i ->
               match find_type typemap i with
-              | Some (tpe, decl_type) -> tpe, (Ast.PTR decl_type)
+              | Some (tpe, decl_type) -> tpe, (Cabs.PTR ([], decl_type))
               | None -> raise (Invalid_Yojson ("Function type not found.", yojson))
             end
           | None -> raise (Invalid_Yojson ("Function type not found.", yojson))
           end
         in
-        let single_name = [return_type], (name, decl_type), location in
+        let single_name = [Cabs.SpecType return_type], (name, decl_type, [], dummy_loc) in
+		(*
         let params =
           begin match List.assoc_opt "parameters" data with
           | Some `List params -> List.map (parse_parameters typemap) params
           | _ -> []
           end
         in
+		*)
         begin match List.assoc_opt "body" data with
         | Some body ->
           let body = parse_body typemap body in
-          Ast.FUNDEF (single_name, params, body, location) :: definitions
+          Cabs.FUNDEF (single_name, body, location, location) :: definitions
         | None ->
-          Ast.FUNDEF (single_name, params, [], location) :: definitions
+          Cabs.FUNDEF (single_name, conv_block [], location, location) :: definitions
         end
     | _ ->
       definitions
@@ -707,7 +687,7 @@ let ast_of_yojson typemap function_typeinfo definitions =
   |> List.fold_left parse_definition []
   |> List.rev
 
-let ast_of_yojson (fname:string) : Yojson.Safe.t -> Ast.file = function
+let cabs_of_yojson (fname:string) : Yojson.Safe.t -> Cabs.file = function
   | `Variant (
       "TranslationUnitDecl", Some (`Tuple (
         _metadata :: (* ? *)
@@ -724,18 +704,18 @@ let ast_of_yojson (fname:string) : Yojson.Safe.t -> Ast.file = function
           end
         in
         let typemap = make_typemap typedata in
-        (* For debbug *)
-        show_typemap typemap;
+        (* For debbug 
+        show_typemap typemap;*)
         let function_typeinfo = make_fuction_typeinfo typemap typedata in
-        (* For debbug *)
-        show_fuction_typeinfo function_typeinfo;
-        let definitions = ast_of_yojson typemap function_typeinfo decls in
+        (* For debbug 
+        show_fuction_typeinfo function_typeinfo;*)
+        let definitions = cabs_of_yojson typemap function_typeinfo decls in
         fname, definitions
   | yojson ->
     raise (Invalid_Yojson ("Invalid AST Yojson.", yojson))
 
 let parse_yojson fname =
   let yojson = Yojson.Safe.from_file fname in
-  try Ok (ast_of_yojson fname yojson) with
+  try Ok (cabs_of_yojson fname yojson) with
   | Invalid_Yojson (message, yojson) ->
     Error (Invalid_Yojson (message, yojson))

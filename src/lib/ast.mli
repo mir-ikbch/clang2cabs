@@ -133,6 +133,8 @@ and statement =
   (** return statement
       {[return e;]}
    *)
+  | SWITCH of expression * statement * location
+  | CASE of expression * statement * location
   | VARDECL of init_name_group * variable_scope * location
   (** variable declaration *)
   | BREAK of location (** break statement *)

@@ -70,6 +70,8 @@ and statement =
   | FOR of expression * expression * expression * statement * location
   | WHILE of expression * statement * location
   | RETURN of expression option * location
+  | SWITCH of expression * statement * location
+  | CASE of expression * statement * location
   | VARDECL of init_name_group * variable_scope * location
   | BREAK of location
   | CONTINUE of location
@@ -232,7 +234,14 @@ and show_statement indent = function
   | GOTO (label, _location) ->
     indent ^ "GOTO " ^ label
   | LABEL (label, stat, _location) ->
-    indent ^ "LABEL " ^ label ^ "\n" ^ show_statement indent stat
+    indent ^ "LABEL " ^ label ^ ":\n" ^ show_statement indent stat
+  | SWITCH (expr, stat, _location) ->
+    indent ^ "SWITCH (" ^ show_expression expr ^ ") {\n" ^
+    show_statement ("  " ^ indent) stat ^ "\n" ^
+    indent ^ "}"
+  | CASE (expr, stat, _location) ->
+    indent ^ "CASE " ^ show_expression expr ^ ":\n" ^
+    show_statement indent stat
 and show_expression = function
   | UNARY (op, expr, _location) ->
     show_unary_operator (show_expression expr) op
